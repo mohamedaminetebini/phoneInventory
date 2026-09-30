@@ -8,7 +8,7 @@ import type { CreateTransactionPayload } from "@/domain/transactions";
 
 export const dynamic = "force-dynamic";
 
-const transactionColumns = "id,direction,model_id,phone_model,phone_color,amount,currency,date,phone_photos,id_front_path,id_back_path,notes,created_at";
+const transactionColumns = "id,direction,model_id,phone_model,phone_color,imei,serial_number,amount,currency,date,phone_photos,id_front_path,id_back_path,notes,created_at";
 const maxRequestBytes = 32_000;
 
 async function parseJsonBody(request: Request): Promise<

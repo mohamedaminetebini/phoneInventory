@@ -1,14 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { Camera, ImagePlus, X } from "lucide-react";
 import {
+  IPHONE_CATALOG,
   getIPhoneColors,
   type IPhoneCatalogItem,
 } from "../../lib/catalog/iphones";
-import type { Currency, Direction, ImageInput, NewTransaction } from "../domain/transactions";
+import type { Currency, Direction, ImageInput, SavedImage, Transaction, TransactionFormData, TransactionFormImage } from "../domain/transactions";
 import { ModelPicker } from "./ModelPicker";
 
 type TransactionFormProps = {
-  onSubmit: (transaction: NewTransaction) => Promise<void>;
+  initial?: Transaction;
+  onSubmit: (transaction: TransactionFormData) => Promise<void>;
   onCancel: () => void;
 };
 
@@ -71,7 +73,9 @@ async function prepareImage(file: File): Promise<ImageInput> {
   };
 }
 
-type ImagePreview = ImageInput & { key: string };
+type ImagePreview =
+  | { kind: "upload"; key: string; name: string; previewUrl: string; input: ImageInput }
+  | { kind: "existing"; key: string; name: string; previewUrl: string; saved: SavedImage };
 
 function AttachmentPicker({
   label,
@@ -94,14 +98,14 @@ function AttachmentPicker({
   addLabel?: string;
   addHint?: string;
 }) {
-  const inputId = `attachment-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const inputId = useId();
 
   return (
     <div className={`attachment-field${wide ? " attachment-field-wide" : ""}`}>
       {!hideFieldLabel && <span className="field-label">{label}</span>}
       {image ? (
         <div className="attachment-preview">
-          <img src={image.dataUrl} alt={`${label} — aperçu`} />
+          <img src={image.previewUrl} alt={`${label} — aperçu`} />
           <span className="attachment-name" title={image.name}>{image.name}</span>
           {onRemove && (
             <button className="attachment-remove" type="button" aria-label={`Supprimer ${label}`} onClick={onRemove}>
@@ -138,27 +142,44 @@ function AttachmentPicker({
 }
 
 function preview(image: ImageInput): ImagePreview {
-  return { ...image, key: `${image.name}-${image.dataUrl.slice(-24)}` };
+  return { kind: "upload", key: `${image.name}-${image.dataUrl.slice(-24)}`, name: image.name, previewUrl: image.dataUrl, input: image };
 }
 
-export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
-  const [direction, setDirection] = useState<Direction>("buy");
-  const [model, setModel] = useState<IPhoneCatalogItem>();
-  const [colorName, setColorName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState<Currency>("TND");
-  const [date, setDate] = useState(localToday);
-  const [phonePhotos, setPhonePhotos] = useState<ImagePreview[]>([]);
-  const [idFront, setIdFront] = useState<ImagePreview>();
-  const [idBack, setIdBack] = useState<ImagePreview>();
-  const [notes, setNotes] = useState("");
+function savedPreview(image: SavedImage): ImagePreview {
+  return { kind: "existing", key: image.path, name: image.name, previewUrl: image.url, saved: image };
+}
+
+function formImage(image: ImagePreview): TransactionFormImage {
+  return image.kind === "existing"
+    ? { kind: "existing", image: image.saved }
+    : { kind: "upload", image: image.input };
+}
+
+export function TransactionForm({ initial, onSubmit, onCancel }: TransactionFormProps) {
+  const initialModel = initial ? IPHONE_CATALOG.find((item) => item.name === initial.phoneModel) : undefined;
+  const [direction, setDirection] = useState<Direction>(initial?.direction ?? "buy");
+  const [model, setModel] = useState<IPhoneCatalogItem | undefined>(initialModel);
+  const [colorName, setColorName] = useState(initial?.phoneColor ?? "");
+  const [imei, setImei] = useState(initial?.imei ?? "");
+  const [imeiTouched, setImeiTouched] = useState(false);
+  const [serialNumber, setSerialNumber] = useState(initial?.serialNumber ?? "");
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [currency, setCurrency] = useState<Currency>(initial?.currency ?? "TND");
+  const [date, setDate] = useState(initial?.date ?? localToday());
+  const [phonePhotos, setPhonePhotos] = useState<ImagePreview[]>(() => initial?.phonePhotos.map(savedPreview) ?? []);
+  const [idFront, setIdFront] = useState<ImagePreview | undefined>(() => initial?.idFront ? savedPreview(initial.idFront) : undefined);
+  const [idBack, setIdBack] = useState<ImagePreview | undefined>(() => initial?.idBack ? savedPreview(initial.idBack) : undefined);
+  const [notes, setNotes] = useState(initial?.notes ?? "");
   const [attachmentError, setAttachmentError] = useState("");
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const colors = model ? getIPhoneColors(model.id) : [];
   const parsedAmount = Number(amount);
-  const ready = Boolean(model && colorName && parsedAmount > 0 && Number.isFinite(parsedAmount) && date && idFront && idBack);
+  const normalizedImei = imei.trim();
+  const imeiIsInvalid = Boolean(normalizedImei && !/^\d{15}$/.test(normalizedImei));
+  const showImeiError = imeiTouched && imeiIsInvalid;
+  const ready = Boolean(model && colorName && parsedAmount > 0 && Number.isFinite(parsedAmount));
 
   const selectModel = (nextModel: IPhoneCatalogItem) => {
     setModel(nextModel);
@@ -190,6 +211,18 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
     }
   };
 
+  const handleReplacePhonePhoto = (key: string) => async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setAttachmentError("");
+    try {
+      const replacement = preview(await prepareImage(file));
+      setPhonePhotos((current) => current.map((image) => image.key === key ? replacement : image));
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : "Impossible de préparer cette image.");
+    }
+  };
+
   const handleSingleImage = (setter: (image: ImagePreview | undefined) => void) => async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
@@ -204,24 +237,30 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError("");
-    if (!model || !colorName || !idFront || !idBack || !ready) {
-      setFormError("Choisissez un modèle et une couleur, saisissez un prix et ajoutez les deux faces de la pièce d’identité.");
+    if (!model || !colorName || !ready) {
+      setFormError("Choisissez un modèle, une couleur et saisissez un prix valide.");
+      return;
+    }
+    if (imeiIsInvalid) {
+      setImeiTouched(true);
+      setFormError("L’IMEI doit contenir exactement 15 chiffres.");
       return;
     }
 
     setSaving(true);
     try {
-      const withoutKey = ({ key: _key, ...image }: ImagePreview) => image;
       await onSubmit({
         direction,
         modelId: model.id,
         colorName,
+        imei: imei.trim(),
+        serialNumber: serialNumber.trim(),
         amount: parsedAmount,
         currency,
-        date,
-        phonePhotos: phonePhotos.map(withoutKey),
-        idFront: withoutKey(idFront),
-        idBack: withoutKey(idBack),
+        date: date || localToday(),
+        phonePhotos: phonePhotos.map(formImage),
+        ...(idFront ? { idFront: formImage(idFront) } : {}),
+        ...(idBack ? { idBack: formImage(idBack) } : {}),
         notes,
       });
     } catch (error) {
@@ -241,8 +280,8 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
     <form className="transaction-form" aria-label="Formulaire de transaction" onSubmit={handleSubmit}>
       <header className="transaction-form-header">
         <div>
-          <h2>Nouvelle transaction</h2>
-          <p>Un iPhone par transaction</p>
+          <h2>{initial ? "Modifier la transaction" : "Nouvelle transaction"}</h2>
+          <p>{initial ? "Modifiez les informations enregistrées" : "Un iPhone par transaction"}</p>
         </div>
         <button className="icon-button" type="button" aria-label="Fermer le formulaire de transaction" onClick={onCancel}>
           <X size={18} aria-hidden="true" />
@@ -287,6 +326,39 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
               <p className="field-hint">Choisissez un modèle pour afficher ses couleurs.</p>
             )}
           </div>
+
+          <div className="device-identifiers">
+            <label className="form-field">
+              <span className="field-label">IMEI <span className="required-mark">Facultatif</span></span>
+              <input
+                aria-label="IMEI"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={15}
+                aria-invalid={showImeiError || undefined}
+                aria-describedby="imei-hint"
+                value={imei}
+                onChange={(event) => setImei(event.target.value)}
+                onBlur={() => setImeiTouched(true)}
+                placeholder="15 chiffres"
+              />
+              <span id="imei-hint" className={`field-hint${showImeiError ? " field-hint-error" : ""}`}>
+                {showImeiError ? "L’IMEI doit contenir exactement 15 chiffres." : "15 chiffres, sans espaces ni tirets"}
+              </span>
+            </label>
+            <label className="form-field">
+              <span className="field-label">Numéro de série <span className="required-mark">Facultatif</span></span>
+              <input
+                aria-label="Numéro de série"
+                type="text"
+                autoComplete="off"
+                maxLength={50}
+                value={serialNumber}
+                onChange={(event) => setSerialNumber(event.target.value)}
+              />
+            </label>
+          </div>
         </section>
 
         <section className="form-section">
@@ -304,7 +376,7 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
                   step="0.001"
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
-                  placeholder="0.000"
+                  placeholder="0"
                   required
                 />
                 <select aria-label="Devise" value={currency} onChange={(event) => setCurrency(event.target.value as Currency)}>
@@ -313,8 +385,8 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
               </span>
             </label>
             <label className="form-field">
-              <span className="field-label">Date <span className="required-mark">Obligatoire</span></span>
-              <input aria-label="Date" type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
+              <span className="field-label">Date <span className="required-mark">Facultatif</span></span>
+              <input aria-label="Date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </label>
           </div>
         </section>
@@ -330,7 +402,7 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
                 key={image.key}
                 label="Photo de l’iPhone"
                 image={image}
-                onChange={handlePhonePhotos}
+                onChange={handleReplacePhonePhoto(image.key)}
                 onRemove={() => removePhonePhoto(image.key)}
               />
             ))}
@@ -351,7 +423,7 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
         <section className="form-section">
           <div className="form-section-title-row">
             <h3>{direction === "buy" ? "Pièces d’identité du vendeur" : "Pièces d’identité de l’acheteur"}</h3>
-            <span className="section-optional">Recto et verso obligatoires</span>
+            <span className="section-optional">Facultatif</span>
           </div>
           <div className="id-photo-grid">
             <AttachmentPicker
@@ -369,8 +441,8 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
           </div>
         </section>
 
-        <details className="more-details">
-          <summary>Plus de détails</summary>
+        <details className="more-details" open={Boolean(initial)}>
+          <summary>{initial ? "Plus d’informations" : "Plus de détails"}</summary>
           <label className="form-field">
             <span className="field-label">Remarques</span>
             <textarea aria-label="Remarques" rows={3} maxLength={3000} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ajouter une remarque sur cette transaction" />
@@ -382,8 +454,8 @@ export function TransactionForm({ onSubmit, onCancel }: TransactionFormProps) {
 
       <footer className="transaction-form-footer">
         <button className="button button-secondary" type="button" onClick={onCancel}>Annuler</button>
-        <button className="button button-primary" type="submit" disabled={!ready || saving}>
-          {saving ? "Enregistrement…" : "Enregistrer la transaction"}
+        <button className="button button-primary" type="submit" disabled={!ready || saving || imeiIsInvalid}>
+          {saving ? "Enregistrement…" : initial ? "Enregistrer les modifications" : "Enregistrer la transaction"}
         </button>
       </footer>
     </form>

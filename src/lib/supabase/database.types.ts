@@ -7,12 +7,14 @@ export type PhoneTransactionRow = {
   model_id: string;
   phone_model: string;
   phone_color: string;
+  imei: string | null;
+  serial_number: string | null;
   amount: number;
   currency: Currency;
   date: string;
   phone_photos: string[];
-  id_front_path: string;
-  id_back_path: string;
+  id_front_path: string | null;
+  id_back_path: string | null;
   notes: string;
   created_at: string;
 };

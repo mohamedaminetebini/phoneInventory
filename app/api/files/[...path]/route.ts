@@ -4,7 +4,8 @@ import { privateJson } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
-const allowedPath = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/(?:phone-[1-5]|id-front|id-back)\.jpg$/i;
+const uploadId = "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const allowedPath = new RegExp(`^[0-9a-f-]{36}/[0-9a-f-]{36}/(?:phone-[1-5](?:-${uploadId})?|id-front(?:-${uploadId})?|id-back(?:-${uploadId})?)\\.jpg$`, "i");
 
 export async function GET(_request: Request, context: { params: Promise<{ path: string[] }> }) {
   const authenticated = await getAuthenticatedSupabase();

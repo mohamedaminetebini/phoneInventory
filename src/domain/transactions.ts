@@ -14,19 +14,26 @@ export type SavedImage = {
   name: string;
   mimeType: ImageMimeType;
   url: string;
+  path: string;
 };
+
+export type TransactionFormImage =
+  | { kind: "existing"; image: SavedImage }
+  | { kind: "upload"; image: ImageInput };
 
 export type Transaction = {
   id: string;
   direction: Direction;
   phoneModel: string;
   phoneColor: string;
+  imei: string | null;
+  serialNumber: string | null;
   amount: number;
   currency: Currency;
   date: string;
   phonePhotos: SavedImage[];
-  idFront: SavedImage;
-  idBack: SavedImage;
+  idFront: SavedImage | null;
+  idBack: SavedImage | null;
   notes: string;
   createdAt: string;
 };
@@ -35,13 +42,21 @@ export type NewTransaction = {
   direction: Direction;
   modelId: string;
   colorName: string;
+  imei: string;
+  serialNumber: string;
   amount: number;
   currency: Currency;
   date: string;
   phonePhotos: ImageInput[];
-  idFront: ImageInput;
-  idBack: ImageInput;
+  idFront?: ImageInput;
+  idBack?: ImageInput;
   notes: string;
+};
+
+export type TransactionFormData = Omit<NewTransaction, "phonePhotos" | "idFront" | "idBack"> & {
+  phonePhotos: TransactionFormImage[];
+  idFront?: TransactionFormImage;
+  idBack?: TransactionFormImage;
 };
 
 /** Small JSON request sent after photos have been uploaded directly to private Storage. */
@@ -50,11 +65,13 @@ export type CreateTransactionPayload = {
   direction: Direction;
   modelId: string;
   colorName: string;
+  imei: string;
+  serialNumber: string;
   amount: number;
   currency: Currency;
   date: string;
   phonePhotos: string[];
-  idFront: string;
-  idBack: string;
+  idFront: string | null;
+  idBack: string | null;
   notes: string;
 };

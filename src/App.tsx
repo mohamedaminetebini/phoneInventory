@@ -8,6 +8,7 @@ import {
   CircleAlert,
   FileImage,
   LogOut,
+  Pencil,
   Plus,
   Smartphone,
   X,
@@ -16,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { IPHONE_CATALOG } from "../lib/catalog/iphones";
 import type { Transaction } from "./domain/transactions";
 import { createSupabaseBrowserClient } from "./lib/supabase/client";
-import { ApiError, createTransaction, fetchTransactions, removeTransaction } from "./api";
+import { ApiError, createTransaction, fetchTransactions, removeTransaction, updateTransaction } from "./api";
 import { TransactionForm } from "./components/TransactionForm";
 import { Drawer, DrawerContent, DrawerTitle } from "./components/ui/drawer";
 import { getInventory, summarizeTransactions } from "./domain/transaction";
@@ -31,15 +32,8 @@ const pageTitles: Record<Page, string> = {
 };
 
 function formatMoney(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("fr-TN", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: currency === "TND" ? 3 : 2,
-    }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
+  const number = new Intl.NumberFormat("en-US", { useGrouping: false, maximumFractionDigits: 3 }).format(amount);
+  return `${number} ${currency}`;
 }
 
 function formatDate(value: string): string {
@@ -115,7 +109,7 @@ function TransactionTable({
               <td className="number-column amount-cell">{formatMoney(transaction.amount, transaction.currency)}</td>
               <td className="date-cell">{formatDate(transaction.date)}</td>
               <td className="attachment-column">
-                <span className="file-count"><FileImage size={15} aria-hidden="true" />{transaction.phonePhotos.length + 2}</span>
+                <span className="file-count"><FileImage size={15} aria-hidden="true" />{transaction.phonePhotos.length + Number(Boolean(transaction.idFront)) + Number(Boolean(transaction.idBack))}</span>
               </td>
               <td className="row-action-cell">
                 <button className="row-action" type="button" aria-label={`Voir la transaction ${transaction.phoneModel}`} onClick={() => onView(transaction)}>
@@ -265,16 +259,18 @@ function TransactionDetails({
   transaction,
   onClose,
   onDelete,
+  onEdit,
 }: {
   transaction: Transaction;
   onClose: () => void;
   onDelete: () => void;
+  onEdit: () => void;
 }) {
   const title = transaction.direction === "buy" ? "Pièce d’identité du vendeur" : "Pièce d’identité de l’acheteur";
   const allImages = [
     ...transaction.phonePhotos.map((image, index) => ({ ...image, label: `Photo de l’iPhone ${index + 1}` })),
-    { ...transaction.idFront, label: `${title} — recto` },
-    { ...transaction.idBack, label: `${title} — verso` },
+    ...(transaction.idFront ? [{ ...transaction.idFront, label: `${title} — recto` }] : []),
+    ...(transaction.idBack ? [{ ...transaction.idBack, label: `${title} — verso` }] : []),
   ];
 
   return (
@@ -298,19 +294,26 @@ function TransactionDetails({
           <dl className="detail-facts">
             <div><dt>Prix</dt><dd>{formatMoney(transaction.amount, transaction.currency)}</dd></div>
             <div><dt>Date</dt><dd>{formatDate(transaction.date)}</dd></div>
+            <div><dt>IMEI</dt><dd className="identifier-value">{transaction.imei || "—"}</dd></div>
+            <div><dt>Numéro de série</dt><dd className="identifier-value">{transaction.serialNumber || "—"}</dd></div>
             {transaction.notes && <div className="detail-notes"><dt>Remarques</dt><dd>{transaction.notes}</dd></div>}
           </dl>
-          <div className="detail-attachments">
-            <h3>Photos et pièces d’identité</h3>
-            <div className="detail-image-grid">
-              {allImages.map((image) => (
-                <figure key={image.url}>
-                  <img src={image.url} alt={image.label} />
-                  <figcaption>{image.label}</figcaption>
-                </figure>
-              ))}
+          <button className="button button-secondary transaction-edit-action" type="button" onClick={onEdit}>
+            <Pencil size={15} aria-hidden="true" />Modifier la transaction
+          </button>
+          {allImages.length > 0 && (
+            <div className="detail-attachments">
+              <h3>Photos et pièces d’identité</h3>
+              <div className="detail-image-grid">
+                {allImages.map((image) => (
+                  <figure key={image.url}>
+                    <img src={image.url} alt={image.label} />
+                    <figcaption>{image.label}</figcaption>
+                  </figure>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <footer className="detail-footer">
@@ -327,6 +330,7 @@ export default function App() {
   const [page, setPage] = useState<Page>("overview");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selected, setSelected] = useState<Transaction>();
+  const [editingTransaction, setEditingTransaction] = useState<Transaction>();
   const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -354,10 +358,36 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  const closeTransactionForm = () => {
+    setFormOpen(false);
+    setEditingTransaction(undefined);
+  };
+
+  const openNewTransaction = () => {
+    setEditingTransaction(undefined);
+    setFormOpen(true);
+  };
+
+  const editTransaction = (transaction: Transaction) => {
+    setSelected(undefined);
+    setEditingTransaction(transaction);
+    setFormOpen(true);
+  };
+
   const saveTransaction = async (payload: Parameters<typeof createTransaction>[0]) => {
+    if (editingTransaction) {
+      const updated = await updateTransaction(editingTransaction.id, payload);
+      setTransactions((current) => current
+        .map((item) => item.id === updated.id ? updated : item)
+        .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)));
+      closeTransactionForm();
+      setToast("Transaction modifiée");
+      return;
+    }
+
     const transaction = await createTransaction(payload);
     setTransactions((current) => [transaction, ...current].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)));
-    setFormOpen(false);
+    closeTransactionForm();
     setToast("Transaction enregistrée");
   };
 
@@ -400,9 +430,10 @@ export default function App() {
           ))}
         </nav>
         <div className="account-actions">
-          <button className="button button-primary new-transaction-button" type="button" onClick={() => setFormOpen(true)}>
+          <button className="button button-primary new-transaction-button" type="button" aria-label="Nouvelle transaction" onClick={openNewTransaction}>
             <Plus size={17} aria-hidden="true" />
-            <span>Nouvelle transaction</span>
+            <span className="new-transaction-label-wide">Nouvelle transaction</span>
+            <span className="new-transaction-label-compact" aria-hidden="true">Ajouter</span>
           </button>
           <button className="sign-out-button" type="button" onClick={() => void signOut()} aria-label="Se déconnecter" title="Se déconnecter">
             <LogOut size={17} aria-hidden="true" />
@@ -440,24 +471,26 @@ export default function App() {
       <Drawer
         open={formOpen}
         onOpenChange={(open) => {
-          if (!open) setFormOpen(false);
+          if (!open) closeTransactionForm();
         }}
         showSwipeHandle
       >
         <DrawerContent className="transaction-form-drawer">
           {formOpen && (
             <>
-              <DrawerTitle className="visually-hidden">Nouvelle transaction</DrawerTitle>
+              <DrawerTitle className="visually-hidden">{editingTransaction ? "Modifier la transaction" : "Nouvelle transaction"}</DrawerTitle>
               <TransactionForm
+                key={editingTransaction?.id ?? "new"}
+                initial={editingTransaction}
                 onSubmit={saveTransaction}
-                onCancel={() => setFormOpen(false)}
+                onCancel={closeTransactionForm}
               />
             </>
           )}
         </DrawerContent>
       </Drawer>
 
-      {selected && <TransactionDetails transaction={selected} onClose={() => setSelected(undefined)} onDelete={() => void deleteTransaction(selected)} />}
+      {selected && <TransactionDetails transaction={selected} onClose={() => setSelected(undefined)} onDelete={() => void deleteTransaction(selected)} onEdit={() => editTransaction(selected)} />}
       {toast && <div className="toast" role="status"><span>{toast}</span><button type="button" aria-label="Masquer la notification" onClick={() => setToast("")}><X size={15} aria-hidden="true" /></button></div>}
     </div>
   );

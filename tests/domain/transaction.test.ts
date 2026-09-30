@@ -10,13 +10,15 @@ function transaction(
   amount: number,
   currency: Transaction["currency"],
 ): Transaction {
-  const front = { name: "front.png", mimeType: "image/png" as const, url: "/api/files/front.png" };
-  const back = { name: "back.png", mimeType: "image/png" as const, url: "/api/files/back.png" };
+  const front = { name: "front.png", mimeType: "image/png" as const, url: "/api/files/front.png", path: "front.png" };
+  const back = { name: "back.png", mimeType: "image/png" as const, url: "/api/files/back.png", path: "back.png" };
   return {
     id,
     direction,
     phoneModel,
     phoneColor,
+    imei: null,
+    serialNumber: null,
     amount,
     currency,
     date: "2026-09-20",
