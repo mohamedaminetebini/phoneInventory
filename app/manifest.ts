@@ -3,9 +3,9 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Phone Inventory",
-    short_name: "Phone Inventory",
-    description: "A private iPhone buy and sell ledger.",
+    name: "Inventaire iPhone",
+    short_name: "Inventaire iPhone",
+    description: "Un registre privé des achats et ventes d’iPhone.",
     start_url: "/",
     scope: "/",
     display: "standalone",

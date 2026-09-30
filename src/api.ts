@@ -14,9 +14,9 @@ async function readError(response: Response): Promise<ApiError> {
     const fieldMessage = body.fields
       ? Object.values(body.fields).flat().find(Boolean)
       : undefined;
-    return new ApiError(fieldMessage ?? body.error ?? "The request could not be completed.", response.status);
+    return new ApiError(fieldMessage ?? body.error ?? "La requête n’a pas pu aboutir.", response.status);
   } catch {
-    return new ApiError("The request could not be completed.", response.status);
+    return new ApiError("La requête n’a pas pu aboutir.", response.status);
   }
 }
 
@@ -29,16 +29,16 @@ export async function fetchTransactions(): Promise<Transaction[]> {
 
 export async function createTransaction(input: NewTransaction): Promise<Transaction> {
   const supabase = createSupabaseBrowserClient();
-  if (!supabase) throw new ApiError("Supabase is not configured yet.", 503);
+  if (!supabase) throw new ApiError("Supabase n’est pas encore configuré.", 503);
 
   const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) throw new ApiError("Your sign-in has expired. Sign in again to save this transaction.", 401);
+  if (userError || !user) throw new ApiError("Votre session a expiré. Reconnectez-vous pour enregistrer cette transaction.", 401);
 
   const id = crypto.randomUUID();
   const uploadedPaths: string[] = [];
   const upload = async (image: ImageInput, fileName: string): Promise<string> => {
     if (image.file.size === 0 || image.file.size > 5 * 1024 * 1024) {
-      throw new ApiError("Each photo must be 5 MB or smaller.", 400);
+      throw new ApiError("Chaque photo doit faire 5 Mo maximum.", 400);
     }
     const path = `${user.id}/${id}/${fileName}`;
     const { error } = await supabase.storage.from("transaction-photos").upload(path, image.file, {
@@ -46,7 +46,7 @@ export async function createTransaction(input: NewTransaction): Promise<Transact
       cacheControl: "0",
       upsert: false,
     });
-    if (error) throw new ApiError("A photo could not be uploaded. Check your connection and try again.", 400);
+    if (error) throw new ApiError("Impossible d’envoyer une photo. Vérifiez votre connexion et réessayez.", 400);
     uploadedPaths.push(path);
     return path;
   };

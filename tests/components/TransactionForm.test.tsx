@@ -8,9 +8,9 @@ describe("transaction model and color selection", () => {
     const user = userEvent.setup();
     render(<TransactionForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /choose iphone model/i }));
-    const picker = screen.getByRole("dialog", { name: /choose iphone model/i });
-    await user.type(within(picker).getByRole("searchbox", { name: /search models/i }), "14 pro");
+    await user.click(screen.getByRole("button", { name: /choisir un modèle d’iphone/i }));
+    const picker = screen.getByRole("dialog", { name: /choisir un modèle d’iphone/i });
+    await user.type(within(picker).getByRole("searchbox", { name: /rechercher des modèles/i }), "14 pro");
     await user.click(within(picker).getByRole("button", { name: "iPhone 14 Pro" }));
 
     const deepPurple = screen.getByRole("button", { name: "Deep Purple" });
@@ -19,10 +19,10 @@ describe("transaction model and color selection", () => {
     expect(deepPurple).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("button", { name: "Coral" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /change iphone model/i }));
-    const nextPicker = screen.getByRole("dialog", { name: /choose iphone model/i });
-    await user.clear(within(nextPicker).getByRole("searchbox", { name: /search models/i }));
-    await user.type(within(nextPicker).getByRole("searchbox", { name: /search models/i }), "15 pro max");
+    await user.click(screen.getByRole("button", { name: /modifier le modèle d’iphone/i }));
+    const nextPicker = screen.getByRole("dialog", { name: /choisir un modèle d’iphone/i });
+    await user.clear(within(nextPicker).getByRole("searchbox", { name: /rechercher des modèles/i }));
+    await user.type(within(nextPicker).getByRole("searchbox", { name: /rechercher des modèles/i }), "15 pro max");
     await user.click(within(nextPicker).getByRole("button", { name: "iPhone 15 Pro Max" }));
 
     expect(screen.queryByRole("button", { name: "Deep Purple" })).not.toBeInTheDocument();
@@ -33,17 +33,17 @@ describe("transaction model and color selection", () => {
     const user = userEvent.setup();
     render(<TransactionForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    expect(screen.getByRole("spinbutton", { name: "Price" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Prix" })).toBeInTheDocument();
     expect(screen.getByLabelText("Date")).toBeInTheDocument();
-    expect(screen.getByLabelText("Seller ID front")).toBeInTheDocument();
-    expect(screen.getByLabelText("Seller ID back")).toBeInTheDocument();
+    expect(screen.getByLabelText("Pièce d’identité du vendeur — recto")).toBeInTheDocument();
+    expect(screen.getByLabelText("Pièce d’identité du vendeur — verso")).toBeInTheDocument();
 
-    await user.click(screen.getByText("Sell"));
-    expect(screen.getByLabelText("Buyer ID front")).toBeInTheDocument();
-    expect(screen.getByLabelText("Buyer ID back")).toBeInTheDocument();
+    await user.click(screen.getByText("Vente"));
+    expect(screen.getByLabelText("Pièce d’identité de l’acheteur — recto")).toBeInTheDocument();
+    expect(screen.getByLabelText("Pièce d’identité de l’acheteur — verso")).toBeInTheDocument();
 
-    await user.click(screen.getByText("More details"));
-    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
+    await user.click(screen.getByText("Plus de détails"));
+    expect(screen.getByRole("textbox", { name: "Remarques" })).toBeInTheDocument();
   });
 
   it("clears seller ID images when changing a buy into a sale", async () => {
@@ -62,12 +62,12 @@ describe("transaction model and color selection", () => {
     });
     render(<TransactionForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    await user.upload(screen.getByLabelText("Seller ID front"), new File(["front"], "front.png", { type: "image/png" }));
-    expect(await screen.findByRole("img", { name: "Seller ID front preview" })).toBeInTheDocument();
+    await user.upload(screen.getByLabelText("Pièce d’identité du vendeur — recto"), new File(["front"], "front.png", { type: "image/png" }));
+    expect(await screen.findByRole("img", { name: "Pièce d’identité du vendeur — recto — aperçu" })).toBeInTheDocument();
 
-    await user.click(screen.getByText("Sell"));
-    expect(screen.queryByRole("img", { name: "Buyer ID front preview" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Buyer ID front")).toBeInTheDocument();
+    await user.click(screen.getByText("Vente"));
+    expect(screen.queryByRole("img", { name: "Pièce d’identité de l’acheteur — recto — aperçu" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Pièce d’identité de l’acheteur — recto")).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
 });

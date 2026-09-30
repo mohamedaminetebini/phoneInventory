@@ -48,7 +48,7 @@ async function parseJsonBody(request: Request): Promise<
 
 export async function GET() {
   const authenticated = await getAuthenticatedSupabase();
-  if (!authenticated) return privateJson({ error: "Sign in to access your inventory." }, 401);
+  if (!authenticated) return privateJson({ error: "Connectez-vous pour accéder à votre inventaire." }, 401);
 
   const { data, error } = await authenticated.supabase
     .from("phone_transactions")
@@ -56,48 +56,48 @@ export async function GET() {
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (error || !data) return privateJson({ error: "Your inventory could not be loaded." }, 500);
+  if (error || !data) return privateJson({ error: "Impossible de charger votre inventaire." }, 500);
   return privateJson({ transactions: data.map((row) => presentTransaction(row)) });
 }
 
 export async function POST(request: Request) {
-  if (!isSameOriginMutation(request)) return privateJson({ error: "This request could not be verified." }, 403);
+  if (!isSameOriginMutation(request)) return privateJson({ error: "Impossible de vérifier cette requête." }, 403);
   const contentLength = request.headers.get("content-length");
   if (contentLength && (!/^\d+$/.test(contentLength) || Number(contentLength) > maxRequestBytes)) {
-    return privateJson({ error: "The transaction details are too large." }, 413);
+    return privateJson({ error: "Les informations de la transaction sont trop volumineuses." }, 413);
   }
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
-    return privateJson({ error: "Send transaction details as JSON." }, 415);
+    return privateJson({ error: "Les informations de la transaction doivent être envoyées au format JSON." }, 415);
   }
 
   const authenticated = await getAuthenticatedSupabase();
-  if (!authenticated) return privateJson({ error: "Sign in to save a transaction." }, 401);
+  if (!authenticated) return privateJson({ error: "Connectez-vous pour enregistrer une transaction." }, 401);
 
   const parsedBody = await parseJsonBody(request);
   if (parsedBody.kind === "too-large") {
-    return privateJson({ error: "The transaction details are too large." }, 413);
+    return privateJson({ error: "Les informations de la transaction sont trop volumineuses." }, 413);
   }
   if (parsedBody.kind === "invalid") {
-    return privateJson({ error: "The transaction details are not valid JSON." }, 400);
+    return privateJson({ error: "Les informations de la transaction ne sont pas au format JSON valide." }, 400);
   }
 
   const parsed = createTransactionSchema.safeParse(parsedBody.value);
   if (!parsed.success) {
     return privateJson({
-      error: "Check the transaction details.",
+      error: "Vérifiez les informations de la transaction.",
       fields: parsed.error.flatten().fieldErrors,
     }, 400);
   }
 
   if (!validateTransactionPhotoPaths(parsed.data, authenticated.user.id)) {
-    return privateJson({ error: "The attached photos could not be verified." }, 400);
+    return privateJson({ error: "Impossible de vérifier les photos jointes." }, 400);
   }
 
   const model = getIPhoneById(parsed.data.modelId);
-  if (!model) return privateJson({ error: "Choose an iPhone model from the catalog." }, 400);
+  if (!model) return privateJson({ error: "Choisissez un modèle d’iPhone dans le catalogue." }, 400);
 
   const serviceSupabase = createSupabaseServiceClient();
-  if (!serviceSupabase) return privateJson({ error: "Server-side transaction storage is not configured." }, 503);
+  if (!serviceSupabase) return privateJson({ error: "Le stockage des transactions n’est pas configuré sur le serveur." }, 503);
 
   const payload = parsed.data as CreateTransactionPayload;
   const { data, error } = await serviceSupabase
@@ -106,6 +106,6 @@ export async function POST(request: Request) {
     .select(transactionColumns)
     .single();
 
-  if (error || !data) return privateJson({ error: "The transaction could not be saved." }, 500);
+  if (error || !data) return privateJson({ error: "Impossible d’enregistrer la transaction." }, 500);
   return privateJson({ transaction: presentTransaction(data) }, 201);
 }

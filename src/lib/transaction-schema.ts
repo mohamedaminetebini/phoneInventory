@@ -7,7 +7,7 @@ const validDate = z.string().refine((date) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
   const parsed = new Date(`${date}T00:00:00.000Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
-}, "Enter a valid date.");
+}, "Saisissez une date valide.");
 
 export const createTransactionSchema = z.object({
   id: z.string().uuid(),
@@ -23,11 +23,11 @@ export const createTransactionSchema = z.object({
   notes: z.string().max(3000).default(""),
 }).strict().superRefine((transaction, context) => {
   if (!isValidIPhoneModel(transaction.modelId)) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["modelId"], message: "Choose an iPhone model from the catalog." });
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["modelId"], message: "Choisissez un modèle d’iPhone dans le catalogue." });
     return;
   }
   if (!isValidIPhoneColor(transaction.modelId, transaction.colorName)) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["colorName"], message: "Choose a color available for this iPhone model." });
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["colorName"], message: "Choisissez une couleur proposée pour ce modèle d’iPhone." });
   }
 });
 
@@ -67,9 +67,9 @@ export function presentTransaction(row: TransactionRow): Transaction {
     amount: Number(row.amount),
     currency: row.currency,
     date: row.date,
-    phonePhotos: row.phone_photos.map((path, index) => savedImage(path, `Phone photo ${index + 1}`)),
-    idFront: savedImage(row.id_front_path, "ID front"),
-    idBack: savedImage(row.id_back_path, "ID back"),
+    phonePhotos: row.phone_photos.map((path, index) => savedImage(path, `Photo de l’iPhone ${index + 1}`)),
+    idFront: savedImage(row.id_front_path, `${row.direction === "buy" ? "Pièce d’identité du vendeur" : "Pièce d’identité de l’acheteur"} — recto`),
+    idBack: savedImage(row.id_back_path, `${row.direction === "buy" ? "Pièce d’identité du vendeur" : "Pièce d’identité de l’acheteur"} — verso`),
     notes: row.notes,
     createdAt: row.created_at,
   };
@@ -77,7 +77,7 @@ export function presentTransaction(row: TransactionRow): Transaction {
 
 export function toTransactionInsert(input: CreateTransactionPayload, userId: string) {
   const model = getIPhoneById(input.modelId);
-  if (!model) throw new Error("Model validation must run before persistence.");
+  if (!model) throw new Error("La validation du modèle doit précéder l’enregistrement.");
   return {
     id: input.id,
     user_id: userId,

@@ -9,14 +9,14 @@ import type { Metadata, Viewport } from "next";
 import { PWARegistration } from "../src/components/PWARegistration";
 
 export const metadata: Metadata = {
-  title: "Phone Inventory",
-  description: "A private iPhone buy and sell ledger.",
+  title: "Inventaire iPhone",
+  description: "Un registre privé des achats et ventes d’iPhone.",
   referrer: "no-referrer",
   robots: { index: false, follow: false },
   icons: { apple: "/icons/apple-touch-icon.png" },
   appleWebApp: {
     capable: true,
-    title: "Phone Inventory",
+    title: "Inventaire iPhone",
     statusBarStyle: "default",
   },
 };
@@ -29,7 +29,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="fr">
       <body>
         <PWARegistration />
         {children}

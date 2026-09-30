@@ -12,7 +12,7 @@ export default async function HomePage() {
 
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error && error.name !== "AuthSessionMissingError") {
-    return <AuthPanel initialError="Supabase could not verify your session. Check the project URL and publishable key, then reload." />;
+    return <AuthPanel initialError="Supabase n’a pas pu vérifier votre session. Vérifiez l’URL du projet et la clé publiable, puis rechargez la page." />;
   }
   if (!user) return <AuthPanel />;
   return <App />;
