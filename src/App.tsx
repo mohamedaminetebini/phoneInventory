@@ -77,9 +77,11 @@ function CurrencyTotals({ values }: { values: Record<string, number> }) {
 function TransactionTable({
   transactions,
   onView,
+  onEdit,
 }: {
   transactions: Transaction[];
   onView: (transaction: Transaction) => void;
+  onEdit: (transaction: Transaction) => void;
 }) {
   if (!transactions.length) return <EmptyState title="Aucune transaction pour le moment" action="Enregistrez un achat ou une vente pour commencer." />;
 
@@ -99,7 +101,15 @@ function TransactionTable({
         <tbody>
           {transactions.map((transaction) => (
             <tr key={transaction.id}>
-              <td><ProductName transaction={transaction} /></td>
+              <td>
+                <ProductName transaction={transaction} />
+                <button
+                  className="transaction-card-edit-trigger"
+                  type="button"
+                  aria-label={`Modifier la transaction ${transaction.phoneModel}`}
+                  onClick={() => onEdit(transaction)}
+                />
+              </td>
               <td>
                 <span className={`transaction-direction ${transaction.direction}`}>
                   {transaction.direction === "buy" ? <ArrowDownLeft size={15} aria-hidden="true" /> : <ArrowUpRight size={15} aria-hidden="true" />}
@@ -134,7 +144,7 @@ function EmptyState({ title, action }: { title: string; action: string }) {
   );
 }
 
-function Overview({ transactions, onView }: { transactions: Transaction[]; onView: (transaction: Transaction) => void }) {
+function Overview({ transactions, onView, onEdit }: { transactions: Transaction[]; onView: (transaction: Transaction) => void; onEdit: (transaction: Transaction) => void }) {
   const summary = summarizeTransactions(transactions);
   const recent = transactions.slice(0, 6);
 
@@ -169,7 +179,7 @@ function Overview({ transactions, onView }: { transactions: Transaction[]; onVie
           </div>
         </div>
         <div className="content-surface">
-          <TransactionTable transactions={recent} onView={onView} />
+          <TransactionTable transactions={recent} onView={onView} onEdit={onEdit} />
         </div>
       </section>
     </>
@@ -215,9 +225,11 @@ function Stock({ transactions }: { transactions: Transaction[] }) {
 function Transactions({
   transactions,
   onView,
+  onEdit,
 }: {
   transactions: Transaction[];
   onView: (transaction: Transaction) => void;
+  onEdit: (transaction: Transaction) => void;
 }) {
   const [query, setQuery] = useState("");
   const [direction, setDirection] = useState<DirectionFilter>("all");
@@ -249,7 +261,7 @@ function Transactions({
         </div>
       </div>
       <div className="content-surface">
-        <TransactionTable transactions={filtered} onView={onView} />
+        <TransactionTable transactions={filtered} onView={onView} onEdit={onEdit} />
       </div>
     </section>
   );
@@ -458,11 +470,11 @@ export default function App() {
         ) : loading ? (
           <div className="loading-state" role="status">Chargement de votre inventaire…</div>
         ) : page === "overview" ? (
-          <Overview transactions={transactions} onView={setSelected} />
+          <Overview transactions={transactions} onView={setSelected} onEdit={editTransaction} />
         ) : page === "stock" ? (
           <Stock transactions={transactions} />
         ) : (
-          <Transactions transactions={transactions} onView={setSelected} />
+          <Transactions transactions={transactions} onView={setSelected} onEdit={editTransaction} />
         )}
       </main>
 
