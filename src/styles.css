@@ -261,7 +261,7 @@ h1, h2, h3 { color: var(--ink); font-family: var(--display); font-weight: 600; }
 .model-trigger-placeholder { color: #85796e; font-size: 13px; }
 .model-trigger-arrow { margin-left: auto; color: var(--muted); }
 .purchase-picker-trigger {
-  width: 100%; min-height: 48px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; min-width: 0; min-height: 48px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   border: 1px solid var(--rule-strong); border-radius: 6px; background: var(--sheet); color: var(--text); cursor: pointer; text-align: left;
 }
 .purchase-picker-trigger:hover { border-color: #ab9c8a; }
