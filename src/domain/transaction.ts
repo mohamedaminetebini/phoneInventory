@@ -3,17 +3,6 @@ import { IPHONE_CATALOG } from "../../lib/catalog/iphones";
 
 export type MoneyByCurrency = Record<Currency, number>;
 
-export type InventoryRow = {
-  modelId: string;
-  phoneModel: string;
-  phoneColor: string;
-  hex: string;
-  units: number;
-  purchases: MoneyByCurrency;
-  sales: MoneyByCurrency;
-  latestDate: string;
-};
-
 export type TransactionSummary = {
   transactions: number;
   buys: number;
@@ -29,51 +18,10 @@ function zeroTotals(): MoneyByCurrency {
   return { TND: 0, EUR: 0, USD: 0 };
 }
 
-export function getInventory(records: readonly Transaction[]): InventoryRow[] {
-  const rows = new Map<string, InventoryRow>();
-  const modelByName = new Map(IPHONE_CATALOG.map((item) => [item.name, item]));
-
-  for (const record of records) {
-    const model = modelByName.get(record.phoneModel);
-    const color = model?.colors.find((item) => item.name === record.phoneColor);
-    if (!model || !color) continue;
-
-    const key = `${model.id}\u0000${record.phoneColor}`;
-    const row = rows.get(key) ?? {
-      modelId: model.id,
-      phoneModel: model.name,
-      phoneColor: record.phoneColor,
-      hex: color.hex ?? "#777777",
-      units: 0,
-      purchases: zeroTotals(),
-      sales: zeroTotals(),
-      latestDate: record.date,
-    };
-
-    if (record.direction === "buy") {
-      row.units += 1;
-      row.purchases[record.currency] += record.amount;
-    } else {
-      row.units -= 1;
-      row.sales[record.currency] += record.amount;
-    }
-    if (record.date > row.latestDate) row.latestDate = record.date;
-    rows.set(key, row);
-  }
-
-  return [...rows.values()]
-    .filter((row) => row.units !== 0)
-    .sort((a, b) => {
-      const orderA = modelByName.get(a.phoneModel)?.order ?? 0;
-      const orderB = modelByName.get(b.phoneModel)?.order ?? 0;
-      return orderB - orderA || a.phoneColor.localeCompare(b.phoneColor);
-    });
-}
-
 /**
  * Returns purchased devices that have not been sold. Legacy sales created before
  * purchase links existed are matched by IMEI/serial where possible, then reduced
- * oldest-first so the device list stays aligned with the aggregate stock count.
+ * oldest-first so the available-device count includes historical sales.
  */
 export function getAvailablePhones(records: readonly Transaction[]): Transaction[] {
   const modelByName = new Map(IPHONE_CATALOG.map((item) => [item.name, item]));
@@ -136,7 +84,7 @@ export function summarizeTransactions(records: readonly Transaction[]): Transact
     }
   }
 
-  const unitsInStock = getInventory(records).reduce((total, row) => total + row.units, 0);
+  const unitsInStock = getAvailablePhones(records).length;
   return {
     transactions: records.length,
     buys,

@@ -20,7 +20,7 @@ import { createSupabaseBrowserClient } from "./lib/supabase/client";
 import { ApiError, createTransaction, fetchTransactions, removeTransaction, updateTransaction } from "./api";
 import { TransactionForm } from "./components/TransactionForm";
 import { Drawer, DrawerContent, DrawerTitle } from "./components/ui/drawer";
-import { getAvailablePhones, getInventory, summarizeTransactions } from "./domain/transaction";
+import { getAvailablePhones, summarizeTransactions } from "./domain/transaction";
 
 type Page = "overview" | "stock" | "transactions";
 type DirectionFilter = "all" | "buy" | "sell";
@@ -188,87 +188,51 @@ function Overview({ transactions, onView, onEdit }: { transactions: Transaction[
 
 function Stock({ transactions, onMarkSold }: { transactions: Transaction[]; onMarkSold: (purchase: Transaction) => void }) {
   const availablePhones = getAvailablePhones(transactions);
-  const inventory = getInventory(transactions).filter((row) => row.units > 0);
   if (!availablePhones.length) return <EmptyState title="Aucun iPhone en stock" action="Enregistrez un achat pour afficher votre stock ici." />;
 
   return (
-    <>
-      <section className="content-section">
-        <div className="section-heading stock-heading">
-          <div>
-            <h2>Téléphones disponibles</h2>
-            <p>{availablePhones.length} iPhone prêt{availablePhones.length === 1 ? "" : "s"} à vendre</p>
-          </div>
+    <section className="content-section">
+      <div className="section-heading stock-heading">
+        <div>
+          <h2>Téléphones disponibles</h2>
+          <p>{availablePhones.length} iPhone prêt{availablePhones.length === 1 ? "" : "s"} à vendre</p>
         </div>
-        <div className="content-surface">
-          {availablePhones.length ? (
-            <div className="table-scroll">
-              <table className="ledger-table devices-table">
-                <thead>
-                  <tr><th scope="col">iPhone et identifiants</th><th scope="col" className="number-column">Acheté à</th><th scope="col">Date d’achat</th><th scope="col"><span className="visually-hidden">Action</span></th></tr>
-                </thead>
-                <tbody>
-                  {availablePhones.map((phone) => (
-                    <tr key={phone.id}>
-                      <td>
-                        <ProductName transaction={phone} />
-                        <span className="device-identifiers-copy">
-                          {phone.imei ? `IMEI ${phone.imei}` : "IMEI —"}
-                          {phone.serialNumber ? ` · Série ${phone.serialNumber}` : " · Série —"}
-                        </span>
-                      </td>
-                      <td className="number-column amount-cell">{formatMoney(phone.amount, phone.currency)}</td>
-                      <td className="date-cell">{formatDate(phone.date)}</td>
-                      <td className="device-sale-action">
-                        <button
-                          className="button button-secondary stock-sell-button"
-                          type="button"
-                          aria-label={`Vendre ${phone.phoneModel} ${phone.phoneColor}${phone.imei ? ` — IMEI ${phone.imei}` : phone.serialNumber ? ` — série ${phone.serialNumber}` : ""}`}
-                          onClick={() => onMarkSold(phone)}
-                        >
-                          <ArrowUpRight size={15} aria-hidden="true" />Vendre
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState title="Aucun téléphone disponible à la vente" action="Les téléphones enregistrés ont déjà été vendus." />
-          )}
-        </div>
-      </section>
-
-      <section className="content-section">
-        <div className="section-heading stock-heading">
-          <div>
-            <h2>Stock par modèle et couleur</h2>
-            <p>{availablePhones.length} iPhone · {inventory.length} combinaisons de modèles et couleurs</p>
-          </div>
-        </div>
-        <div className="content-surface">
-          <div className="table-scroll">
-            <table className="ledger-table stock-table">
+      </div>
+      <div className="content-surface">
+        <div className="table-scroll">
+          <table className="ledger-table devices-table">
             <thead>
-              <tr><th scope="col">iPhone</th><th scope="col" className="number-column">En stock</th><th scope="col" className="number-column">Achats</th><th scope="col" className="number-column">Ventes</th><th scope="col">Dernière activité</th></tr>
+              <tr><th scope="col">iPhone et identifiants</th><th scope="col" className="number-column">Acheté à</th><th scope="col">Date d’achat</th><th scope="col"><span className="visually-hidden">Action</span></th></tr>
             </thead>
             <tbody>
-              {inventory.map((row) => (
-                <tr key={`${row.modelId}-${row.phoneColor}`}>
-                  <td><ProductName transaction={row} /></td>
-                  <td className={`number-column stock-units ${row.units < 0 ? "negative-stock" : ""}`}>{row.units}</td>
-                  <td className="number-column"><CurrencyTotals values={row.purchases} /></td>
-                  <td className="number-column"><CurrencyTotals values={row.sales} /></td>
-                  <td className="date-cell">{formatDate(row.latestDate)}</td>
+              {availablePhones.map((phone) => (
+                <tr key={phone.id}>
+                  <td>
+                    <ProductName transaction={phone} />
+                    <span className="device-identifiers-copy">
+                      {phone.imei ? `IMEI ${phone.imei}` : "IMEI —"}
+                      {phone.serialNumber ? ` · Série ${phone.serialNumber}` : " · Série —"}
+                    </span>
+                  </td>
+                  <td className="number-column amount-cell">{formatMoney(phone.amount, phone.currency)}</td>
+                  <td className="date-cell">{formatDate(phone.date)}</td>
+                  <td className="device-sale-action">
+                    <button
+                      className="button button-secondary stock-sell-button"
+                      type="button"
+                      aria-label={`Vendre ${phone.phoneModel} ${phone.phoneColor}${phone.imei ? ` — IMEI ${phone.imei}` : phone.serialNumber ? ` — série ${phone.serialNumber}` : ""}`}
+                      onClick={() => onMarkSold(phone)}
+                    >
+                      <ArrowUpRight size={15} aria-hidden="true" />Vendre
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          </div>
         </div>
-      </section>
-    </>
+      </div>
+    </section>
   );
 }
 
