@@ -4,6 +4,7 @@ export type PhoneTransactionRow = {
   id: string;
   user_id: string;
   direction: Direction;
+  sold_from_transaction_id: string | null;
   model_id: string;
   phone_model: string;
   phone_color: string;

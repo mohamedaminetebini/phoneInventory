@@ -63,6 +63,7 @@ export async function createTransaction(input: TransactionFormData): Promise<Tra
     const payload: CreateTransactionPayload = {
       id,
       direction: input.direction,
+      soldFromTransactionId: input.soldFromTransactionId,
       modelId: input.modelId,
       colorName: input.colorName,
       imei: input.imei,
@@ -153,6 +154,7 @@ export async function updateTransaction(
     const payload: CreateTransactionPayload = {
       id,
       direction: input.direction,
+      soldFromTransactionId: input.soldFromTransactionId,
       modelId: input.modelId,
       colorName: input.colorName,
       imei: input.imei,

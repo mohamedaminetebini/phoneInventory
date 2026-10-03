@@ -24,6 +24,7 @@ export type TransactionFormImage =
 export type Transaction = {
   id: string;
   direction: Direction;
+  soldFromTransactionId: string | null;
   phoneModel: string;
   phoneColor: string;
   imei: string | null;
@@ -40,6 +41,7 @@ export type Transaction = {
 
 export type NewTransaction = {
   direction: Direction;
+  soldFromTransactionId: string | null;
   modelId: string;
   colorName: string;
   imei: string;
@@ -63,6 +65,7 @@ export type TransactionFormData = Omit<NewTransaction, "phonePhotos" | "idFront"
 export type CreateTransactionPayload = {
   id: string;
   direction: Direction;
+  soldFromTransactionId: string | null;
   modelId: string;
   colorName: string;
   imei: string;

@@ -19,6 +19,7 @@ const optionalSerialNumber = z.string().trim()
 export const createTransactionSchema = z.object({
   id: z.string().uuid(),
   direction: z.enum(["buy", "sell"]),
+  soldFromTransactionId: z.string().uuid().nullable().default(null),
   modelId: z.string().min(1).max(100),
   colorName: z.string().min(1).max(100),
   imei: optionalImei,
@@ -31,6 +32,9 @@ export const createTransactionSchema = z.object({
   idBack: z.string().min(1).max(180).nullable().default(null),
   notes: z.string().max(3000).default(""),
 }).strict().superRefine((transaction, context) => {
+  if (transaction.direction === "buy" && transaction.soldFromTransactionId !== null) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["soldFromTransactionId"], message: "Un achat ne peut pas être lié à un autre achat." });
+  }
   if (!isValidIPhoneModel(transaction.modelId)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["modelId"], message: "Choisissez un modèle d’iPhone dans le catalogue." });
     return;
@@ -73,6 +77,7 @@ export function presentTransaction(row: TransactionRow): Transaction {
   return {
     id: row.id,
     direction: row.direction,
+    soldFromTransactionId: row.sold_from_transaction_id,
     phoneModel: row.phone_model,
     phoneColor: row.phone_color,
     imei: row.imei,
@@ -95,6 +100,7 @@ export function toTransactionInsert(input: CreateTransactionPayload, userId: str
     id: input.id,
     user_id: userId,
     direction: input.direction,
+    sold_from_transaction_id: input.soldFromTransactionId,
     model_id: input.modelId,
     phone_model: model.name,
     phone_color: input.colorName,
@@ -115,6 +121,7 @@ export function toTransactionUpdate(input: CreateTransactionPayload) {
   if (!model) throw new Error("La validation du modèle doit précéder la modification.");
   return {
     direction: input.direction,
+    sold_from_transaction_id: input.soldFromTransactionId,
     model_id: input.modelId,
     phone_model: model.name,
     phone_color: input.colorName,

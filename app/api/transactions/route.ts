@@ -8,7 +8,7 @@ import type { CreateTransactionPayload } from "@/domain/transactions";
 
 export const dynamic = "force-dynamic";
 
-const transactionColumns = "id,direction,model_id,phone_model,phone_color,imei,serial_number,amount,currency,date,phone_photos,id_front_path,id_back_path,notes,created_at";
+const transactionColumns = "id,direction,sold_from_transaction_id,model_id,phone_model,phone_color,imei,serial_number,amount,currency,date,phone_photos,id_front_path,id_back_path,notes,created_at";
 const maxRequestBytes = 32_000;
 
 async function parseJsonBody(request: Request): Promise<
@@ -100,12 +100,37 @@ export async function POST(request: Request) {
   if (!serviceSupabase) return privateJson({ error: "Le stockage des transactions n’est pas configuré sur le serveur." }, 503);
 
   const payload = parsed.data as CreateTransactionPayload;
+  if (payload.direction === "sell") {
+    if (!payload.soldFromTransactionId) {
+      return privateJson({ error: "Choisissez le téléphone en stock que vous vendez." }, 400);
+    }
+    const { data: purchase, error: purchaseError } = await serviceSupabase
+      .from("phone_transactions")
+      .select("id,direction,model_id,phone_color,imei,serial_number")
+      .eq("id", payload.soldFromTransactionId)
+      .eq("user_id", authenticated.user.id)
+      .maybeSingle();
+
+    if (purchaseError) return privateJson({ error: "Impossible de vérifier ce téléphone en stock." }, 500);
+    if (!purchase || purchase.direction !== "buy") {
+      return privateJson({ error: "Ce téléphone n’est plus disponible en stock." }, 409);
+    }
+    if (purchase.model_id !== payload.modelId || purchase.phone_color !== payload.colorName
+      || purchase.imei !== (payload.imei || null) || purchase.serial_number !== (payload.serialNumber || null)) {
+      return privateJson({ error: "Les informations du téléphone vendu doivent correspondre à son achat." }, 400);
+    }
+  } else if (payload.soldFromTransactionId) {
+    return privateJson({ error: "Seule une vente peut être liée à un achat." }, 400);
+  }
+
   const { data, error } = await serviceSupabase
     .from("phone_transactions")
     .insert(toTransactionInsert(payload, authenticated.user.id))
     .select(transactionColumns)
     .single();
 
+  if (error?.code === "23505") return privateJson({ error: "Ce téléphone est déjà marqué comme vendu." }, 409);
+  if (error?.code === "23503" || error?.code === "23514") return privateJson({ error: "Ce téléphone n’est plus disponible en stock." }, 409);
   if (error || !data) return privateJson({ error: "Impossible d’enregistrer la transaction." }, 500);
   return privateJson({ transaction: presentTransaction(data) }, 201);
 }

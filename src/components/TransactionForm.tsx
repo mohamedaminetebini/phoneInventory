@@ -1,5 +1,5 @@
-import { useId, useState, type FormEvent } from "react";
-import { Camera, ImagePlus, X } from "lucide-react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { Camera, ImagePlus, Search, X } from "lucide-react";
 import {
   IPHONE_CATALOG,
   getIPhoneColors,
@@ -7,9 +7,13 @@ import {
 } from "../../lib/catalog/iphones";
 import type { Currency, Direction, ImageInput, SavedImage, Transaction, TransactionFormData, TransactionFormImage } from "../domain/transactions";
 import { ModelPicker } from "./ModelPicker";
+import { Drawer, DrawerContent, DrawerTitle } from "./ui/drawer";
 
 type TransactionFormProps = {
   initial?: Transaction;
+  saleOf?: Transaction;
+  availablePhones?: Transaction[];
+  identityLocked?: boolean;
   onSubmit: (transaction: TransactionFormData) => Promise<void>;
   onCancel: () => void;
 };
@@ -155,16 +159,116 @@ function formImage(image: ImagePreview): TransactionFormImage {
     : { kind: "upload", image: image.input };
 }
 
-export function TransactionForm({ initial, onSubmit, onCancel }: TransactionFormProps) {
-  const initialModel = initial ? IPHONE_CATALOG.find((item) => item.name === initial.phoneModel) : undefined;
-  const [direction, setDirection] = useState<Direction>(initial?.direction ?? "buy");
+function PurchasePicker({
+  phones,
+  value,
+  onSelect,
+}: {
+  phones: Transaction[];
+  value?: Transaction;
+  onSelect: (phone: Transaction) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const results = phones.filter((phone) =>
+    `${phone.phoneModel} ${phone.phoneColor} ${phone.imei ?? ""} ${phone.serialNumber ?? ""}`
+      .toLocaleLowerCase()
+      .includes(normalizedQuery),
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        className={value ? "purchase-picker-trigger is-selected" : "purchase-picker-trigger"}
+        type="button"
+        onClick={() => { setQuery(""); setOpen(true); }}
+        aria-label={value ? `Téléphone à vendre : ${value.phoneModel}, ${value.phoneColor}` : "Choisir un téléphone en stock"}
+      >
+        {value ? (
+          <>
+            <span className="purchase-picker-copy">
+              <strong>{value.phoneModel} · {value.phoneColor}</strong>
+              <span>{value.imei ? `IMEI ${value.imei}` : "IMEI non renseigné"}{value.serialNumber ? ` · Série ${value.serialNumber}` : ""} · Achat {value.date} · {value.amount} {value.currency}</span>
+            </span>
+            <span className="purchase-picker-change">Modifier</span>
+          </>
+        ) : <><span>Choisir un téléphone du stock</span><span aria-hidden="true">⌄</span></>}
+      </button>
+
+      <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
+        <DrawerContent className="model-picker-drawer-popup purchase-picker-drawer-popup">
+          <DrawerTitle className="visually-hidden">Choisir un téléphone en stock</DrawerTitle>
+          <section className="model-dialog model-picker-panel">
+            <div className="model-dialog-header">
+              <h2>Choisir le téléphone vendu</h2>
+              <button className="icon-button" type="button" aria-label="Fermer la liste des téléphones" onClick={() => setOpen(false)}>
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <label className="model-search">
+              <Search size={17} aria-hidden="true" />
+              <span className="visually-hidden">Rechercher un téléphone en stock</span>
+              <input
+                ref={inputRef}
+                type="search"
+                aria-label="Rechercher un téléphone en stock"
+                placeholder="Modèle, IMEI ou numéro de série"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {query && <span className="search-result-count">{results.length}</span>}
+            </label>
+            <div className="model-results">
+              {results.map((phone) => (
+                <button
+                  key={phone.id}
+                  className="model-option purchase-picker-option"
+                  type="button"
+                  onClick={() => { onSelect(phone); setOpen(false); }}
+                >
+                  <span className="device-mark" aria-hidden="true" />
+                  <span className="purchase-option-copy">
+                    <strong>{phone.phoneModel} · {phone.phoneColor}</strong>
+                    <span>{phone.imei ? `IMEI ${phone.imei}` : "IMEI —"}{phone.serialNumber ? ` · Série ${phone.serialNumber}` : " · Série —"}</span>
+                  </span>
+                  <span className="model-option-year">{phone.date} · {phone.amount} {phone.currency}</span>
+                </button>
+              ))}
+              {results.length === 0 && (
+                <p className="model-empty">{phones.length ? `Aucun téléphone ne correspond à « ${query} ».` : "Aucun téléphone disponible. Enregistrez un achat pour commencer."}</p>
+              )}
+            </div>
+          </section>
+        </DrawerContent>
+      </Drawer>
+    </>
+  );
+}
+
+export function TransactionForm({ initial, saleOf, availablePhones = [], identityLocked = false, onSubmit, onCancel }: TransactionFormProps) {
+  const deviceSource = saleOf ?? initial;
+  const initialModel = deviceSource ? IPHONE_CATALOG.find((item) => item.name === deviceSource.phoneModel) : undefined;
+  const [direction, setDirection] = useState<Direction>(saleOf ? "sell" : initial?.direction ?? "buy");
+  const [saleTarget, setSaleTarget] = useState<Transaction | undefined>(saleOf);
   const [model, setModel] = useState<IPhoneCatalogItem | undefined>(initialModel);
-  const [colorName, setColorName] = useState(initial?.phoneColor ?? "");
-  const [imei, setImei] = useState(initial?.imei ?? "");
+  const [colorName, setColorName] = useState(deviceSource?.phoneColor ?? "");
+  const [imei, setImei] = useState(deviceSource?.imei ?? "");
   const [imeiTouched, setImeiTouched] = useState(false);
-  const [serialNumber, setSerialNumber] = useState(initial?.serialNumber ?? "");
+  const [serialNumber, setSerialNumber] = useState(deviceSource?.serialNumber ?? "");
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
-  const [currency, setCurrency] = useState<Currency>(initial?.currency ?? "TND");
+  const [currency, setCurrency] = useState<Currency>(saleOf?.currency ?? initial?.currency ?? "TND");
   const [date, setDate] = useState(initial?.date ?? localToday());
   const [phonePhotos, setPhonePhotos] = useState<ImagePreview[]>(() => initial?.phonePhotos.map(savedPreview) ?? []);
   const [idFront, setIdFront] = useState<ImagePreview | undefined>(() => initial?.idFront ? savedPreview(initial.idFront) : undefined);
@@ -179,7 +283,12 @@ export function TransactionForm({ initial, onSubmit, onCancel }: TransactionForm
   const normalizedImei = imei.trim();
   const imeiIsInvalid = Boolean(normalizedImei && !/^\d{15}$/.test(normalizedImei));
   const showImeiError = imeiTouched && imeiIsInvalid;
-  const ready = Boolean(model && colorName && parsedAmount > 0 && Number.isFinite(parsedAmount));
+  const linkedPurchaseId = saleTarget?.id ?? initial?.soldFromTransactionId ?? null;
+  const editingLegacySale = Boolean(initial?.direction === "sell" && !initial.soldFromTransactionId);
+  const awaitingSalePhone = direction === "sell" && !linkedPurchaseId && !editingLegacySale;
+  const lockedPhoneIdentity = Boolean(saleTarget || initial?.soldFromTransactionId || identityLocked);
+  const ready = Boolean(model && colorName && parsedAmount > 0 && Number.isFinite(parsedAmount)
+    && (direction !== "sell" || linkedPurchaseId || editingLegacySale));
 
   const selectModel = (nextModel: IPhoneCatalogItem) => {
     setModel(nextModel);
@@ -193,6 +302,23 @@ export function TransactionForm({ initial, onSubmit, onCancel }: TransactionForm
     setDirection(nextDirection);
     setIdFront(undefined);
     setIdBack(undefined);
+    if (nextDirection === "buy") {
+      setSaleTarget(undefined);
+    } else {
+      setSaleTarget(undefined);
+      setModel(undefined);
+      setColorName("");
+      setImei("");
+      setSerialNumber("");
+    }
+  };
+
+  const selectSaleTarget = (phone: Transaction) => {
+    setSaleTarget(phone);
+    setModel(IPHONE_CATALOG.find((item) => item.name === phone.phoneModel));
+    setColorName(phone.phoneColor);
+    setImei(phone.imei ?? "");
+    setSerialNumber(phone.serialNumber ?? "");
   };
 
   const handlePhonePhotos = async (files: FileList | null) => {
@@ -238,7 +364,9 @@ export function TransactionForm({ initial, onSubmit, onCancel }: TransactionForm
     event.preventDefault();
     setFormError("");
     if (!model || !colorName || !ready) {
-      setFormError("Choisissez un modèle, une couleur et saisissez un prix valide.");
+      setFormError(direction === "sell" && !linkedPurchaseId
+        ? "Choisissez un téléphone disponible et saisissez son prix de vente."
+        : "Choisissez un modèle, une couleur et saisissez un prix valide.");
       return;
     }
     if (imeiIsInvalid) {
@@ -251,6 +379,7 @@ export function TransactionForm({ initial, onSubmit, onCancel }: TransactionForm
     try {
       await onSubmit({
         direction,
+        soldFromTransactionId: linkedPurchaseId,
         modelId: model.id,
         colorName,
         imei: imei.trim(),
@@ -280,8 +409,8 @@ export function TransactionForm({ initial, onSubmit, onCancel }: TransactionForm
     <form className="transaction-form" aria-label="Formulaire de transaction" onSubmit={handleSubmit}>
       <header className="transaction-form-header">
         <div>
-          <h2>{initial ? "Modifier la transaction" : "Nouvelle transaction"}</h2>
-          <p>{initial ? "Modifiez les informations enregistrées" : "Un iPhone par transaction"}</p>
+          <h2>{initial ? "Modifier la transaction" : saleOf ? "Vendre un iPhone du stock" : "Nouvelle transaction"}</h2>
+          <p>{initial ? "Modifiez les informations enregistrées" : direction === "sell" ? "La vente reste liée à l’achat de ce téléphone" : "Un iPhone par transaction"}</p>
         </div>
         <button className="icon-button" type="button" aria-label="Fermer le formulaire de transaction" onClick={onCancel}>
           <X size={18} aria-hidden="true" />
@@ -292,73 +421,97 @@ export function TransactionForm({ initial, onSubmit, onCancel }: TransactionForm
         <fieldset className="direction-fieldset">
           <legend className="visually-hidden">Type de transaction</legend>
           <span className="direction-label" aria-hidden="true">Type de transaction</span>
-          <div className="direction-switch" data-direction={direction}>
-            <button type="button" aria-pressed={direction === "buy"} onClick={() => selectDirection("buy")}>Achat</button>
-            <button type="button" aria-pressed={direction === "sell"} onClick={() => selectDirection("sell")}>Vente</button>
-          </div>
+          {initial || saleOf ? (
+            <span className={`direction-fixed ${direction}`}>{direction === "buy" ? "Achat" : "Vente"}</span>
+          ) : (
+            <div className="direction-switch" data-direction={direction}>
+              <button type="button" aria-pressed={direction === "buy"} onClick={() => selectDirection("buy")}>Achat</button>
+              <button type="button" aria-pressed={direction === "sell"} onClick={() => selectDirection("sell")}>Vente</button>
+            </div>
+          )}
         </fieldset>
+
+        {direction === "sell" && !initial && (
+          <section className="form-section sale-phone-section">
+            <h3>Téléphone vendu</h3>
+            <PurchasePicker phones={availablePhones} value={saleTarget} onSelect={selectSaleTarget} />
+          </section>
+        )}
 
         <section className="form-section">
           <h3>Détails de l’iPhone</h3>
-          <div className="form-field">
-            <span className="field-label">Modèle d’iPhone <span className="required-mark">Obligatoire</span></span>
-            <ModelPicker value={model} onSelect={selectModel} />
-          </div>
-
-          <div className="form-field">
-            <span className="field-label">Couleur <span className="required-mark">Obligatoire</span></span>
-            {colors.length ? (
-              <div className="color-options" aria-label="Couleurs disponibles">
-                {colors.map((color) => (
-                  <button
-                    className="color-option"
-                    type="button"
-                    key={color.name}
-                    aria-pressed={colorName === color.name}
-                    onClick={() => setColorName(color.name)}
-                  >
-                    <span className="color-swatch" style={{ backgroundColor: color.hex ?? "#777777" }} aria-hidden="true" />
-                    <span>{color.name}</span>
-                  </button>
-                ))}
+          {awaitingSalePhone ? (
+            <p className="field-hint">Choisissez d’abord un téléphone en stock. Son modèle, sa couleur et ses identifiants seront repris de l’achat.</p>
+          ) : (
+            <>
+              <div className="form-field">
+                <span className="field-label">Modèle d’iPhone <span className="required-mark">Obligatoire</span></span>
+                {lockedPhoneIdentity ? <div className="locked-device-value">{model?.name ?? "Modèle inconnu"}</div> : <ModelPicker value={model} onSelect={selectModel} />}
               </div>
-            ) : (
-              <p className="field-hint">Choisissez un modèle pour afficher ses couleurs.</p>
-            )}
-          </div>
 
-          <div className="device-identifiers">
-            <label className="form-field">
-              <span className="field-label">IMEI <span className="required-mark">Facultatif</span></span>
-              <input
-                aria-label="IMEI"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={15}
-                aria-invalid={showImeiError || undefined}
-                aria-describedby="imei-hint"
-                value={imei}
-                onChange={(event) => setImei(event.target.value)}
-                onBlur={() => setImeiTouched(true)}
-                placeholder="15 chiffres"
-              />
-              <span id="imei-hint" className={`field-hint${showImeiError ? " field-hint-error" : ""}`}>
-                {showImeiError ? "L’IMEI doit contenir exactement 15 chiffres." : "15 chiffres, sans espaces ni tirets"}
-              </span>
-            </label>
-            <label className="form-field">
-              <span className="field-label">Numéro de série <span className="required-mark">Facultatif</span></span>
-              <input
-                aria-label="Numéro de série"
-                type="text"
-                autoComplete="off"
-                maxLength={50}
-                value={serialNumber}
-                onChange={(event) => setSerialNumber(event.target.value)}
-              />
-            </label>
-          </div>
+              <div className="form-field">
+                <span className="field-label">Couleur <span className="required-mark">Obligatoire</span></span>
+                {lockedPhoneIdentity ? (
+                  <div className="locked-device-value">
+                    <span className="color-swatch" style={{ backgroundColor: colors.find((color) => color.name === colorName)?.hex ?? "#777777" }} aria-hidden="true" />
+                    {colorName || "Couleur inconnue"}
+                  </div>
+                ) : colors.length ? (
+                  <div className="color-options" aria-label="Couleurs disponibles">
+                    {colors.map((color) => (
+                      <button
+                        className="color-option"
+                        type="button"
+                        key={color.name}
+                        aria-pressed={colorName === color.name}
+                        onClick={() => setColorName(color.name)}
+                      >
+                        <span className="color-swatch" style={{ backgroundColor: color.hex ?? "#777777" }} aria-hidden="true" />
+                        <span>{color.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="field-hint">Choisissez un modèle pour afficher ses couleurs.</p>
+                )}
+              </div>
+
+              <div className="device-identifiers">
+                <label className="form-field">
+                  <span className="field-label">IMEI <span className="required-mark">Facultatif</span></span>
+                  <input
+                    aria-label="IMEI"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={15}
+                    aria-invalid={showImeiError || undefined}
+                    aria-describedby="imei-hint"
+                    value={imei}
+                    onChange={(event) => setImei(event.target.value)}
+                    onBlur={() => setImeiTouched(true)}
+                    placeholder="15 chiffres"
+                    readOnly={lockedPhoneIdentity}
+                  />
+                  <span id="imei-hint" className={`field-hint${showImeiError ? " field-hint-error" : ""}`}>
+                    {showImeiError ? "L’IMEI doit contenir exactement 15 chiffres." : "15 chiffres, sans espaces ni tirets"}
+                  </span>
+                </label>
+                <label className="form-field">
+                  <span className="field-label">Numéro de série <span className="required-mark">Facultatif</span></span>
+                  <input
+                    aria-label="Numéro de série"
+                    type="text"
+                    autoComplete="off"
+                    maxLength={50}
+                    value={serialNumber}
+                    onChange={(event) => setSerialNumber(event.target.value)}
+                    readOnly={lockedPhoneIdentity}
+                  />
+                </label>
+              </div>
+            </>
+          )}
         </section>
 
         <section className="form-section">

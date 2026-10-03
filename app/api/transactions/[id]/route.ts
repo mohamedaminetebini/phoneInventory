@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { createTransactionSchema, presentTransaction, toTransactionUpdate, validateTransactionPhotoPaths } from "@/lib/transaction-schema";
 import type { CreateTransactionPayload } from "@/domain/transactions";
 
-const transactionColumns = "id,direction,model_id,phone_model,phone_color,imei,serial_number,amount,currency,date,phone_photos,id_front_path,id_back_path,notes,created_at";
+const transactionColumns = "id,direction,sold_from_transaction_id,model_id,phone_model,phone_color,imei,serial_number,amount,currency,date,phone_photos,id_front_path,id_back_path,notes,created_at";
 const maxRequestBytes = 32_000;
 
 async function parseBoundedJson(request: Request): Promise<
@@ -84,12 +84,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const { data: current, error: currentError } = await serviceSupabase
     .from("phone_transactions")
-    .select("phone_photos,id_front_path,id_back_path")
+    .select("direction,sold_from_transaction_id,phone_photos,id_front_path,id_back_path")
     .eq("id", id)
     .eq("user_id", authenticated.user.id)
     .maybeSingle();
   if (currentError) return privateJson({ error: "Impossible de charger la transaction à modifier." }, 500);
   if (!current) return privateJson({ error: "Transaction introuvable." }, 404);
+  if (parsed.data.direction !== current.direction
+    || parsed.data.soldFromTransactionId !== current.sold_from_transaction_id) {
+    return privateJson({ error: "Le type de transaction et le téléphone associé ne peuvent pas être modifiés." }, 400);
+  }
 
   const existingPaths = new Set([
     ...current.phone_photos,
@@ -128,6 +132,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     .select(transactionColumns)
     .maybeSingle();
 
+  if (error?.code === "23514") return privateJson({ error: "Les informations du téléphone vendu doivent correspondre à son achat." }, 409);
   if (error) return privateJson({ error: "Impossible de modifier la transaction." }, 500);
   if (!data) return privateJson({ error: "Transaction introuvable." }, 404);
 
@@ -149,6 +154,17 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return privateJson({ error: "Transaction introuvable." }, 404);
   }
+
+  const serviceSupabase = createSupabaseServiceClient();
+  if (!serviceSupabase) return privateJson({ error: "L’enregistrement des transactions n’est pas configuré sur le serveur." }, 503);
+  const { data: linkedSale, error: linkedSaleError } = await serviceSupabase
+    .from("phone_transactions")
+    .select("id")
+    .eq("user_id", authenticated.user.id)
+    .eq("sold_from_transaction_id", id)
+    .maybeSingle();
+  if (linkedSaleError) return privateJson({ error: "Impossible de vérifier cette transaction." }, 500);
+  if (linkedSale) return privateJson({ error: "Supprimez d’abord la vente associée à cet achat." }, 409);
 
   const { data: transaction, error: selectError } = await authenticated.supabase
     .from("phone_transactions")

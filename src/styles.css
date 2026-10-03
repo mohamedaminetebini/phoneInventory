@@ -209,6 +209,11 @@ h1, h2, h3 { color: var(--ink); font-family: var(--display); font-weight: 600; }
 .stock-table .stock-units { color: var(--stock); font-family: var(--mono); font-size: 14px; font-weight: 500; }
 .stock-table .negative-stock { color: var(--danger); }
 .stock-table .currency-totals { align-items: end; font-size: 11px; }
+.devices-table td:first-child { min-width: 260px; }
+.devices-table .product-name { margin-bottom: 5px; }
+.device-identifiers-copy { display: block; margin-left: 35px; color: var(--muted); font-family: var(--mono); font-size: 10px; overflow-wrap: anywhere; }
+.device-sale-action { text-align: right; white-space: nowrap; }
+.stock-sell-button { min-height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
 
 .transactions-heading { align-items: end; margin-bottom: 14px; }
 .transaction-filters { display: flex; align-items: center; gap: 8px; }
@@ -255,6 +260,27 @@ h1, h2, h3 { color: var(--ink); font-family: var(--display); font-weight: 600; }
 .model-trigger-change { margin-left: auto; color: var(--trade); font-size: 12px; }
 .model-trigger-placeholder { color: #85796e; font-size: 13px; }
 .model-trigger-arrow { margin-left: auto; color: var(--muted); }
+.purchase-picker-trigger {
+  width: 100%; min-height: 48px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1px solid var(--rule-strong); border-radius: 6px; background: var(--sheet); color: var(--text); cursor: pointer; text-align: left;
+}
+.purchase-picker-trigger:hover { border-color: #ab9c8a; }
+.purchase-picker-copy, .purchase-option-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.purchase-picker-copy strong, .purchase-option-copy strong { overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.purchase-picker-copy > span, .purchase-option-copy > span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 10px; }
+.purchase-picker-change { flex: 0 0 auto; color: var(--trade); font-size: 12px; }
+.purchase-picker-option { gap: 10px; }
+.purchase-option-copy { flex: 1; }
+.purchase-option-copy strong { font-size: 12px; }
+.purchase-picker-option .model-option-year { margin-left: 0; }
+.locked-device-value {
+  min-height: 41px; padding: 0 11px; display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--rule); border-radius: 6px; background: #f8f5f0; color: var(--text); font-size: 13px;
+}
+.direction-fixed { min-width: 104px; min-height: 38px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--rule); border-radius: 6px; font-size: 13px; font-weight: 600; }
+.direction-fixed.buy { background: #e9f3ec; color: #25613e; }
+.direction-fixed.sell { background: #f8ede4; color: #93430e; }
+.sale-phone-section { margin-top: 0; }
 
 .transaction-drawer-viewport { position: fixed; inset: 0; z-index: 70; pointer-events: none; user-select: none; }
 .transaction-drawer-viewport[data-modal="true"] { pointer-events: auto; }
@@ -509,6 +535,14 @@ h1, h2, h3 { color: var(--ink); font-family: var(--display); font-weight: 600; }
   .stock-table td:nth-child(3), .stock-table td:nth-child(4), .stock-table td:nth-child(5) { display: none; }
   .stock-table tbody tr { min-height: 67px; }
   .stock-table td:nth-child(2) { grid-column: 2; grid-row: 1 / 3; padding: 0 3px; text-align: right; font-family: var(--mono); font-size: 15px; }
+  .devices-table tbody tr { min-height: 101px; grid-template-rows: repeat(3, auto); row-gap: 4px; }
+  .devices-table td:first-child { grid-column: 1; grid-row: 1 / 4; min-width: 0; }
+  .devices-table td:nth-child(2) { grid-column: 2; grid-row: 1; padding: 0; text-align: right; white-space: nowrap; }
+  .devices-table td:nth-child(3) { display: block; grid-column: 2; grid-row: 2; text-align: right; font-size: 11px !important; }
+  .devices-table td:nth-child(4) { display: block; grid-column: 2; grid-row: 3; }
+  .devices-table .product-name { align-items: flex-start; }
+  .devices-table .device-identifiers-copy { margin-left: 31px; font-size: 9px; line-height: 1.45; }
+  .devices-table .stock-sell-button { min-height: 31px; }
   .stock-heading p { font-size: 12px; }
   .transactions-heading { flex-direction: column; align-items: stretch; }
   .transaction-filters { width: 100%; }

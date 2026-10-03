@@ -20,7 +20,7 @@ import { createSupabaseBrowserClient } from "./lib/supabase/client";
 import { ApiError, createTransaction, fetchTransactions, removeTransaction, updateTransaction } from "./api";
 import { TransactionForm } from "./components/TransactionForm";
 import { Drawer, DrawerContent, DrawerTitle } from "./components/ui/drawer";
-import { getInventory, summarizeTransactions } from "./domain/transaction";
+import { getAvailablePhones, getInventory, summarizeTransactions } from "./domain/transaction";
 
 type Page = "overview" | "stock" | "transactions";
 type DirectionFilter = "all" | "buy" | "sell";
@@ -186,21 +186,70 @@ function Overview({ transactions, onView, onEdit }: { transactions: Transaction[
   );
 }
 
-function Stock({ transactions }: { transactions: Transaction[] }) {
+function Stock({ transactions, onMarkSold }: { transactions: Transaction[]; onMarkSold: (purchase: Transaction) => void }) {
   const inventory = getInventory(transactions);
+  const availablePhones = getAvailablePhones(transactions);
   if (!inventory.length) return <EmptyState title="Aucun iPhone en stock" action="Enregistrez un achat pour afficher votre stock ici." />;
 
   return (
-    <section className="content-section">
-      <div className="section-heading stock-heading">
-        <div>
-          <h2>Stock actuel</h2>
-          <p>{inventory.reduce((count, row) => count + row.units, 0)} iPhone · {inventory.length} combinaisons de modèles et couleurs</p>
+    <>
+      <section className="content-section">
+        <div className="section-heading stock-heading">
+          <div>
+            <h2>Téléphones disponibles</h2>
+            <p>{availablePhones.length} iPhone prêt{availablePhones.length === 1 ? "" : "s"} à vendre</p>
+          </div>
         </div>
-      </div>
-      <div className="content-surface">
-        <div className="table-scroll">
-          <table className="ledger-table stock-table">
+        <div className="content-surface">
+          {availablePhones.length ? (
+            <div className="table-scroll">
+              <table className="ledger-table devices-table">
+                <thead>
+                  <tr><th scope="col">iPhone et identifiants</th><th scope="col" className="number-column">Acheté à</th><th scope="col">Date d’achat</th><th scope="col"><span className="visually-hidden">Action</span></th></tr>
+                </thead>
+                <tbody>
+                  {availablePhones.map((phone) => (
+                    <tr key={phone.id}>
+                      <td>
+                        <ProductName transaction={phone} />
+                        <span className="device-identifiers-copy">
+                          {phone.imei ? `IMEI ${phone.imei}` : "IMEI —"}
+                          {phone.serialNumber ? ` · Série ${phone.serialNumber}` : " · Série —"}
+                        </span>
+                      </td>
+                      <td className="number-column amount-cell">{formatMoney(phone.amount, phone.currency)}</td>
+                      <td className="date-cell">{formatDate(phone.date)}</td>
+                      <td className="device-sale-action">
+                        <button
+                          className="button button-secondary stock-sell-button"
+                          type="button"
+                          aria-label={`Vendre ${phone.phoneModel} ${phone.phoneColor}${phone.imei ? ` — IMEI ${phone.imei}` : phone.serialNumber ? ` — série ${phone.serialNumber}` : ""}`}
+                          onClick={() => onMarkSold(phone)}
+                        >
+                          <ArrowUpRight size={15} aria-hidden="true" />Vendre
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState title="Aucun téléphone disponible à la vente" action="Les téléphones enregistrés ont déjà été vendus." />
+          )}
+        </div>
+      </section>
+
+      <section className="content-section">
+        <div className="section-heading stock-heading">
+          <div>
+            <h2>Stock par modèle et couleur</h2>
+            <p>{inventory.reduce((count, row) => count + row.units, 0)} iPhone · {inventory.length} combinaisons de modèles et couleurs</p>
+          </div>
+        </div>
+        <div className="content-surface">
+          <div className="table-scroll">
+            <table className="ledger-table stock-table">
             <thead>
               <tr><th scope="col">iPhone</th><th scope="col" className="number-column">En stock</th><th scope="col" className="number-column">Achats</th><th scope="col" className="number-column">Ventes</th><th scope="col">Dernière activité</th></tr>
             </thead>
@@ -216,9 +265,10 @@ function Stock({ transactions }: { transactions: Transaction[] }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -343,6 +393,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selected, setSelected] = useState<Transaction>();
   const [editingTransaction, setEditingTransaction] = useState<Transaction>();
+  const [saleOfTransaction, setSaleOfTransaction] = useState<Transaction>();
   const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -370,18 +421,29 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  const availablePhones = useMemo(() => getAvailablePhones(transactions), [transactions]);
+
   const closeTransactionForm = () => {
     setFormOpen(false);
     setEditingTransaction(undefined);
+    setSaleOfTransaction(undefined);
   };
 
   const openNewTransaction = () => {
     setEditingTransaction(undefined);
+    setSaleOfTransaction(undefined);
+    setFormOpen(true);
+  };
+
+  const markPhoneSold = (purchase: Transaction) => {
+    setEditingTransaction(undefined);
+    setSaleOfTransaction(purchase);
     setFormOpen(true);
   };
 
   const editTransaction = (transaction: Transaction) => {
     setSelected(undefined);
+    setSaleOfTransaction(undefined);
     setEditingTransaction(transaction);
     setFormOpen(true);
   };
@@ -400,10 +462,14 @@ export default function App() {
     const transaction = await createTransaction(payload);
     setTransactions((current) => [transaction, ...current].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)));
     closeTransactionForm();
-    setToast("Transaction enregistrée");
+    setToast(payload.direction === "sell" ? "Téléphone marqué comme vendu" : "Achat enregistré");
   };
 
   const deleteTransaction = async (transaction: Transaction) => {
+    if (transaction.direction === "buy" && transactions.some((item) => item.soldFromTransactionId === transaction.id)) {
+      setToast("Supprimez d’abord la vente associée à cet achat.");
+      return;
+    }
     const action = transaction.direction === "buy" ? "cet achat" : "cette vente";
     if (!window.confirm(`Supprimer ${action} concernant l’iPhone ${transaction.phoneModel} ?`)) return;
     try {
@@ -472,7 +538,7 @@ export default function App() {
         ) : page === "overview" ? (
           <Overview transactions={transactions} onView={setSelected} onEdit={editTransaction} />
         ) : page === "stock" ? (
-          <Stock transactions={transactions} />
+          <Stock transactions={transactions} onMarkSold={markPhoneSold} />
         ) : (
           <Transactions transactions={transactions} onView={setSelected} onEdit={editTransaction} />
         )}
@@ -490,10 +556,13 @@ export default function App() {
         <DrawerContent className="transaction-form-drawer">
           {formOpen && (
             <>
-              <DrawerTitle className="visually-hidden">{editingTransaction ? "Modifier la transaction" : "Nouvelle transaction"}</DrawerTitle>
+              <DrawerTitle className="visually-hidden">{editingTransaction ? "Modifier la transaction" : saleOfTransaction ? "Vendre un téléphone du stock" : "Nouvelle transaction"}</DrawerTitle>
               <TransactionForm
-                key={editingTransaction?.id ?? "new"}
+                key={editingTransaction?.id ?? (saleOfTransaction ? `sale-${saleOfTransaction.id}` : "new")}
                 initial={editingTransaction}
+                saleOf={saleOfTransaction}
+                availablePhones={availablePhones}
+                identityLocked={Boolean(editingTransaction?.direction === "buy" && transactions.some((item) => item.soldFromTransactionId === editingTransaction.id))}
                 onSubmit={saveTransaction}
                 onCancel={closeTransactionForm}
               />
