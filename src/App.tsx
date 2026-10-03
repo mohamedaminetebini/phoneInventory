@@ -187,9 +187,9 @@ function Overview({ transactions, onView, onEdit }: { transactions: Transaction[
 }
 
 function Stock({ transactions, onMarkSold }: { transactions: Transaction[]; onMarkSold: (purchase: Transaction) => void }) {
-  const inventory = getInventory(transactions);
   const availablePhones = getAvailablePhones(transactions);
-  if (!inventory.length) return <EmptyState title="Aucun iPhone en stock" action="Enregistrez un achat pour afficher votre stock ici." />;
+  const inventory = getInventory(transactions).filter((row) => row.units > 0);
+  if (!availablePhones.length) return <EmptyState title="Aucun iPhone en stock" action="Enregistrez un achat pour afficher votre stock ici." />;
 
   return (
     <>
@@ -244,7 +244,7 @@ function Stock({ transactions, onMarkSold }: { transactions: Transaction[]; onMa
         <div className="section-heading stock-heading">
           <div>
             <h2>Stock par modèle et couleur</h2>
-            <p>{inventory.reduce((count, row) => count + row.units, 0)} iPhone · {inventory.length} combinaisons de modèles et couleurs</p>
+            <p>{availablePhones.length} iPhone · {inventory.length} combinaisons de modèles et couleurs</p>
           </div>
         </div>
         <div className="content-surface">
